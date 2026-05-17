@@ -16,6 +16,9 @@ export function useGameLogic({ mode = GAME_MODE.AI, difficulty = DIFFICULTY.L3, 
   const [aiThinking, setAiThinking] = useState(false)
   const [lastMove, setLastMove] = useState(null)
   const [moveHistory, setMoveHistory] = useState([]) // { board, move, player }
+  const boardRef = useRef(board)
+
+  useEffect(() => { boardRef.current = board }, [board])
 
   const endGame = useCallback((w) => {
     setStatus(GAME_STATUS.OVER)
@@ -46,12 +49,10 @@ export function useGameLogic({ mode = GAME_MODE.AI, difficulty = DIFFICULTY.L3, 
     setAiThinking(true)
     const delays = { [DIFFICULTY.L1]: 400, [DIFFICULTY.L2]: 500, [DIFFICULTY.L3]: 600, [DIFFICULTY.L4]: 800, [DIFFICULTY.L5]: 1000 }
     const timer = setTimeout(() => {
-      setBoard(b => {
-        const move = getBestMove(b, difficulty)
-        if (move) doMove(move, b, PLAYER.BLACK)
-        setAiThinking(false)
-        return b
-      })
+      const b = boardRef.current
+      const move = getBestMove(b, difficulty)
+      if (move) doMove(move, b, PLAYER.BLACK)
+      setAiThinking(false)
     }, delays[difficulty] ?? 600)
     return () => clearTimeout(timer)
   }, [currentPlayer, mode, difficulty, status, doMove])
@@ -89,7 +90,9 @@ export function useGameLogic({ mode = GAME_MODE.AI, difficulty = DIFFICULTY.L3, 
   }, [board, selected, validMoves, currentPlayer, status, mode, doMove])
 
   const reset = useCallback((newStartingBoard = null) => {
-    setBoard(newStartingBoard ?? initialBoard())
+    const freshBoard = newStartingBoard ?? initialBoard()
+    boardRef.current = freshBoard
+    setBoard(freshBoard)
     setCurrentPlayer(PLAYER.RED)
     setSelected(null)
     setValidMoves([])
