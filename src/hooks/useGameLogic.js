@@ -16,6 +16,7 @@ export function useGameLogic({ mode = GAME_MODE.AI, difficulty = DIFFICULTY.L3, 
   const [aiThinking, setAiThinking] = useState(false)
   const [lastMove, setLastMove] = useState(null)
   const [moveHistory, setMoveHistory] = useState([])
+  const [lastCaptures, setLastCaptures] = useState([])
 
   // Refs for reading latest values inside async callbacks without stale closures
   const boardRef = useRef(board)
@@ -35,6 +36,14 @@ export function useGameLogic({ mode = GAME_MODE.AI, difficulty = DIFFICULTY.L3, 
     const entry = { board: boardState, move, player }
     moveHistoryRef.current = [...moveHistoryRef.current, entry]
     setMoveHistory(h => [...h, entry])
+
+    // Snapshot captured pieces before the board is updated so the animation
+    // can render ghost pieces at those squares during the fade-out.
+    if (move.captures.length > 0) {
+      const ghosts = move.captures.map(([r, c]) => ({ row: r, col: c, piece: boardState[r][c] }))
+      setLastCaptures(ghosts)
+      setTimeout(() => setLastCaptures([]), 480)
+    }
 
     const newBoard = applyMove(boardState, move)
     setBoard(newBoard)
@@ -121,13 +130,14 @@ export function useGameLogic({ mode = GAME_MODE.AI, difficulty = DIFFICULTY.L3, 
     setCapturedBlack(0)
     setMoveCount(0)
     setLastMove(null)
+    setLastCaptures([])
     setAiThinking(false)
     setMoveHistory([])
   }, [])
 
   return {
     board, currentPlayer, selected, validMoves, status, winner,
-    capturedRed, capturedBlack, moveCount, aiThinking, lastMove, moveHistory,
+    capturedRed, capturedBlack, moveCount, aiThinking, lastMove, lastCaptures, moveHistory,
     handleSquareClick, reset,
   }
 }

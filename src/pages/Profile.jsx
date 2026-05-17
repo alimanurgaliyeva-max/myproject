@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowLeft, Edit2, Check, Trophy, Zap, Shield, Flame } from 'lucide-react'
+import { ArrowLeft, Edit2, Check, Trophy, Zap, Shield, Volume2, VolumeX } from 'lucide-react'
 import { useApp } from '../context/AppContext'
 import { ACHIEVEMENTS } from '../utils/achievements'
 import { getEloTier } from '../utils/eloSystem'
@@ -170,6 +170,26 @@ export default function Profile() {
                     <span className="text-xs font-semibold">{theme.name}</span>
                   </button>
                 ))}
+              </div>
+            </div>
+
+            {/* Preferences */}
+            <div className="card">
+              <h3 className="font-bold mb-4 flex items-center gap-2">
+                {profile.soundEnabled !== false ? <Volume2 size={16} className="text-[#f1a208]" /> : <VolumeX size={16} className="text-[#999]" />}
+                Preferences
+              </h3>
+              <div className="flex items-center justify-between py-3 border-b border-[#e0e0e0] dark:border-[#333]">
+                <div>
+                  <p className="text-sm font-semibold">Sound Effects</p>
+                  <p className="text-xs text-[#666] dark:text-[#b0b0b0] mt-0.5">Move whoosh &amp; capture sounds</p>
+                </div>
+                <button
+                  onClick={() => updateProfile({ soundEnabled: profile.soundEnabled === false })}
+                  className={`relative w-11 h-6 rounded-full transition-colors duration-200 ${profile.soundEnabled !== false ? 'bg-[#f1a208]' : 'bg-[#e0e0e0] dark:bg-[#333]'}`}
+                >
+                  <span className={`absolute top-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-transform duration-200 ${profile.soundEnabled !== false ? 'translate-x-5' : 'translate-x-0.5'}`} />
+                </button>
               </div>
             </div>
 

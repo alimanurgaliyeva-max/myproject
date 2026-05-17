@@ -118,6 +118,7 @@ export default function DailyChallenge() {
               selected={game.selected}
               validMoves={game.validMoves}
               lastMove={game.lastMove}
+              lastCaptures={game.lastCaptures}
               onSquareClick={game.handleSquareClick}
               boardTheme={profile.boardTheme}
             />

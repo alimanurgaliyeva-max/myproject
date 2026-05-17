@@ -1,6 +1,7 @@
 import { useSearchParams, Link } from 'react-router-dom'
 import { ArrowLeft, Bot, Users } from 'lucide-react'
 import { useState, useCallback, useEffect, useRef } from 'react'
+import { playMoveSound, playCaptureSound } from '../services/audio'
 import Board from '../components/Board'
 import GameInfo from '../components/GameInfo'
 import GameControls from '../components/GameControls'
@@ -137,6 +138,17 @@ export default function Game() {
   const game = useGameLogic({ mode, difficulty, onGameEnd: handleGameEnd, onCapture: handleCapture })
   const timer = useGameTimer(timerMode, game.currentPlayer, game.status === 'playing')
 
+  // Play sounds when a move is made — capture sound takes priority over move sound
+  useEffect(() => {
+    if (!game.lastMove) return
+    const soundOn = profileRef.current.soundEnabled !== false
+    if (game.lastMove.captures.length > 0) {
+      playCaptureSound(soundOn)
+    } else {
+      playMoveSound(soundOn)
+    }
+  }, [game.lastMove])
+
   const handleNewGame = useCallback(() => {
     game.reset()
     coach.resetCoach()
@@ -211,6 +223,7 @@ export default function Game() {
               selected={game.selected}
               validMoves={game.validMoves}
               lastMove={game.lastMove}
+              lastCaptures={game.lastCaptures}
               onSquareClick={game.handleSquareClick}
               boardTheme={profile.boardTheme}
             />
