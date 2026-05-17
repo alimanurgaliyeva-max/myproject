@@ -12,45 +12,19 @@ export default function Piece({ piece, selected, capturing = false }) {
   const red = isRed(piece)
   const king = isKing(piece)
 
-  // Kings are visually larger than regular pieces — this is the ONLY intended size difference.
-  // No CSS transforms are used for selected/hover so pieces never appear "randomly large".
-  const sizeClass = king ? 'w-[86%] h-[86%]' : 'w-[74%] h-[74%]'
-
-  const colorClass = red
-    ? 'bg-gradient-to-br from-[#f04b58] to-[#b02030] border-2 border-[#d0253a]'
-    : 'bg-gradient-to-br from-[#2a2a2a] to-[#111111] border-2 border-[#444]'
-
-  const darkColorClass = red
-    ? 'dark:from-[#ff6666] dark:to-[#cc2222] dark:border-[#ff4444]'
-    : 'dark:from-[#eeeeee] dark:to-[#cccccc] dark:border-[#aaaaaa]'
-
-  // Selection uses a ring only — no scale transform, so no size artifact
-  const ringClass = !capturing && selected
-    ? 'ring-4 ring-[#f1a208] ring-offset-2 ring-offset-transparent'
-    : ''
-
-  // Hover uses shadow only — no scale transform
-  const hoverClass = !capturing ? 'hover:shadow-piece-hover cursor-pointer' : 'cursor-default'
-
-  // Transition only shadow, not transform or dimensions
-  const transitionClass = 'transition-shadow duration-150'
-
-  const shadowClass = selected ? 'shadow-piece-hover' : 'shadow-piece'
-
+  const sizeClass    = king ? 'w-[86%] h-[86%]' : 'w-[74%] h-[74%]'
+  const colorClass   = red ? 'piece-3d-red' : 'piece-3d-black'
+  const selectedClass = !capturing && selected ? 'piece-3d-selected' : ''
+  const hoverClass   = !capturing ? 'cursor-pointer' : 'cursor-default'
   const captureClass = capturing ? 'piece-capture' : ''
-
-  const textColor = red ? 'text-white' : 'text-[#f1a208]'
-  const darkText = red ? '' : 'dark:text-[#111]'
+  const textColor    = red ? 'text-white' : 'text-[#f1a208]'
+  const darkText     = red ? '' : 'dark:text-[#111]'
 
   return (
     <div className={[
       'rounded-full flex items-center justify-center relative',
-      sizeClass, colorClass, darkColorClass,
-      ringClass, hoverClass, shadowClass, transitionClass, captureClass,
+      sizeClass, colorClass, selectedClass, hoverClass, captureClass,
     ].filter(Boolean).join(' ')}>
-      {/* Inner gloss */}
-      <div className="absolute inset-[14%] rounded-full bg-white/12 pointer-events-none" />
-      {/* Crown — only on kings */}
       {king && (
         <span className={`${textColor} ${darkText} flex items-center justify-center w-full h-full pointer-events-none`}>
           <CrownIcon />

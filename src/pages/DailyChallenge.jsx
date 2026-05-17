@@ -50,6 +50,7 @@ export default function DailyChallenge() {
     startingBoard: challenge.board,
     onGameEnd: handleGameEnd,
     onCapture: handleCapture,
+    soundEnabled: profile.soundEnabled !== false,
   })
 
   const resetChallenge = useCallback(() => {
