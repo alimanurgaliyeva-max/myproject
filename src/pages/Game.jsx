@@ -1,6 +1,6 @@
 import { useSearchParams, Link } from 'react-router-dom'
-import { ArrowLeft, Bot, Users, Brain } from 'lucide-react'
-import { useState, useCallback } from 'react'
+import { ArrowLeft, Bot, Users } from 'lucide-react'
+import { useState, useCallback, useEffect, useRef } from 'react'
 import Board from '../components/Board'
 import GameInfo from '../components/GameInfo'
 import GameControls from '../components/GameControls'
@@ -13,7 +13,7 @@ import { useGameTimer } from '../hooks/useGameTimer'
 import { useApp } from '../context/AppContext'
 import { analyzeGame } from '../utils/aiCoach'
 import { calculateNewElo, getAIElo } from '../utils/eloSystem'
-import { GAME_MODE, DIFFICULTY, TIMER_MODES, AI_OPPONENTS, XP_REWARDS } from '../utils/constants'
+import { PLAYER, GAME_MODE, DIFFICULTY, TIMER_MODES, AI_OPPONENTS, XP_REWARDS } from '../utils/constants'
 
 const DIFF_ORDER = [DIFFICULTY.L1, DIFFICULTY.L2, DIFFICULTY.L3, DIFFICULTY.L4, DIFFICULTY.L5]
 
@@ -79,10 +79,54 @@ export default function Game() {
 
   const { profile, addXP, updateElo, recordGame, checkAndUnlockAchievements } = useApp()
 
+  // Use refs so handleGameEnd never has stale profile/hints values
+  // AND so that profile reference changes (from notifications) don't recreate handleGameEnd,
+  // which would cause the AI setTimeout to be cleared and restarted mid-turn.
+  const profileRef = useRef(profile)
+  useEffect(() => { profileRef.current = profile }, [profile])
+
+  const difficultyRef = useRef(difficulty)
+  useEffect(() => { difficultyRef.current = difficulty }, [difficulty])
+
   const [coachEnabled, setCoachEnabled] = useState(profile.coachEnabled ?? true)
   const [hintLevel, setHintLevel] = useState(profile.hintLevel ?? 2)
-
   const coach = useAICoach(coachEnabled, hintLevel)
+  const hintsUsedRef = useRef(0)
+  useEffect(() => { hintsUsedRef.current = coach.hintsUsed }, [coach.hintsUsed])
+
+  // Stable callback — no profile/coach in deps, uses refs instead
+  const handleGameEnd = useCallback(({ winner, moveHistory, capturedRed, capturedBlack }) => {
+    const p = profileRef.current
+    const d = difficultyRef.current
+    const won = winner === PLAYER.RED
+    const ai = AI_OPPONENTS[d]
+
+    const xpKey = won
+      ? { l1: 'WIN_AI_L1', l2: 'WIN_AI_L2', l3: 'WIN_AI_L3', l4: 'WIN_AI_L4', l5: 'WIN_AI_L5' }[d]
+      : 'LOSS'
+    addXP(XP_REWARDS[xpKey] ?? XP_REWARDS.LOSS, won ? `Defeated ${ai?.name}!` : 'Participation XP')
+
+    if (mode === GAME_MODE.AI) {
+      const newElo = calculateNewElo(p.elo, getAIElo(d), won ? 1 : 0, p.gamesPlayed)
+      updateElo(newElo)
+    }
+
+    const analysis = analyzeGame(moveHistory ?? [])
+    setGameAnalysis(analysis)
+
+    recordGame({
+      won,
+      difficulty: d,
+      mode,
+      capturedByOpponent: capturedBlack ?? 0,
+      moveCount: moveHistory?.length ?? 0,
+      usedHints: hintsUsedRef.current > 0,
+    })
+    checkAndUnlockAchievements({ type: 'game_end', won, difficulty: d, usedHints: hintsUsedRef.current > 0 })
+
+    setLastGameResult({ winner, won })
+    setTimeout(() => setShowAnalysis(true), 800)
+  }, [mode, addXP, updateElo, recordGame, checkAndUnlockAchievements])
 
   const handleCapture = useCallback(({ player, count }) => {
     if (count >= 3) {
@@ -90,48 +134,41 @@ export default function Game() {
     }
   }, [checkAndUnlockAchievements])
 
-  const handleGameEnd = useCallback(({ winner }) => {
-    const won = winner === 'red'
-    const ai = AI_OPPONENTS[difficulty]
-
-    // XP
-    const xpKey = won
-      ? { l1: 'WIN_AI_L1', l2: 'WIN_AI_L2', l3: 'WIN_AI_L3', l4: 'WIN_AI_L4', l5: 'WIN_AI_L5' }[difficulty]
-      : 'LOSS'
-    addXP(XP_REWARDS[xpKey] ?? XP_REWARDS.LOSS, won ? `Defeated ${ai?.name}!` : 'Participation XP')
-
-    // Elo
-    if (mode === GAME_MODE.AI) {
-      const newElo = calculateNewElo(profile.elo, getAIElo(difficulty), won ? 1 : 0, profile.gamesPlayed)
-      updateElo(newElo)
-    }
-
-    // Record + achievement check
-    recordGame({ won, difficulty, mode, capturedByOpponent: 0, moveCount: 0, usedHints: coach.hintsUsed > 0 })
-    checkAndUnlockAchievements({ type: 'game_end', won, difficulty, usedHints: coach.hintsUsed > 0, capturedByOpponent: 0 })
-
-    setLastGameResult({ winner, won })
-    setTimeout(() => setShowAnalysis(true), 800)
-  }, [difficulty, mode, profile, addXP, updateElo, recordGame, checkAndUnlockAchievements, coach.hintsUsed])
-
   const game = useGameLogic({ mode, difficulty, onGameEnd: handleGameEnd, onCapture: handleCapture })
   const timer = useGameTimer(timerMode, game.currentPlayer, game.status === 'playing')
 
-  const handleNewGame = () => {
+  const handleNewGame = useCallback(() => {
     game.reset()
     coach.resetCoach()
     timer.resetTimer()
     setShowAnalysis(false)
     setGameAnalysis(null)
     setGameKey(k => k + 1)
-  }
+  }, [game.reset, coach.resetCoach, timer.resetTimer])
 
-  const handleDifficultyChange = d => { setDifficulty(d); handleNewGame() }
-  const handleTimerChange = t => { setTimerMode(t); handleNewGame() }
+  const handleDifficultyChange = useCallback((d) => {
+    setDifficulty(d)
+    game.reset()
+    coach.resetCoach()
+    timer.resetTimer()
+    setShowAnalysis(false)
+    setGameAnalysis(null)
+    setGameKey(k => k + 1)
+  }, [game.reset, coach.resetCoach, timer.resetTimer])
 
-  const handleResign = () => {
-    handleGameEnd({ winner: 'black' })
-  }
+  const handleTimerChange = useCallback((t) => {
+    setTimerMode(t)
+    game.reset()
+    coach.resetCoach()
+    timer.resetTimer()
+    setShowAnalysis(false)
+    setGameAnalysis(null)
+    setGameKey(k => k + 1)
+  }, [game.reset, coach.resetCoach, timer.resetTimer])
+
+  const handleResign = useCallback(() => {
+    handleGameEnd({ winner: PLAYER.BLACK, moveHistory: game.moveHistory, capturedRed: game.capturedRed, capturedBlack: game.capturedBlack })
+  }, [handleGameEnd, game.moveHistory, game.capturedRed, game.capturedBlack])
 
   return (
     <div className="min-h-screen pt-[70px] animate-fade-in bg-white dark:bg-[#0d0d0d]">

@@ -1,39 +1,43 @@
 import { useState, useCallback } from 'react'
 import { Link } from 'react-router-dom'
-import { ArrowLeft, Flame, Lightbulb, ChevronDown, ChevronUp } from 'lucide-react'
+import { ArrowLeft, Flame, Lightbulb, ChevronDown, ChevronUp, CheckCircle2 } from 'lucide-react'
 import { useApp } from '../context/AppContext'
 import { useGameLogic } from '../hooks/useGameLogic'
 import Board from '../components/Board'
 import GameControls from '../components/GameControls'
 import { getDailyChallenge, getTodayKey } from '../utils/dailyChallenges'
-import { GAME_MODE, DIFFICULTY, XP_REWARDS } from '../utils/constants'
-import { PLAYER } from '../utils/constants'
-import { getBestMove } from '../utils/aiEngine'
+import { GAME_MODE, DIFFICULTY, XP_REWARDS, PLAYER } from '../utils/constants'
 
 const DIFF_OPTIONS = [
-  { key: 'easy', label: 'Easy', xp: 20, color: 'text-[#22c55e] border-[#22c55e]', bg: 'bg-[#22c55e]' },
-  { key: 'medium', label: 'Medium', xp: 50, color: 'text-[#f1a208] border-[#f1a208]', bg: 'bg-[#f1a208]' },
-  { key: 'hard', label: 'Hard', xp: 100, color: 'text-[#e63946] border-[#e63946]', bg: 'bg-[#e63946]' },
+  { key: 'easy',   label: 'Easy',   xp: XP_REWARDS.DAILY_EASY,   color: 'text-[#22c55e] border-[#22c55e]', bg: 'bg-[#22c55e]', aiDiff: DIFFICULTY.L2 },
+  { key: 'medium', label: 'Medium', xp: XP_REWARDS.DAILY_MEDIUM, color: 'text-[#f1a208] border-[#f1a208]', bg: 'bg-[#f1a208]', aiDiff: DIFFICULTY.L3 },
+  { key: 'hard',   label: 'Hard',   xp: XP_REWARDS.DAILY_HARD,   color: 'text-[#e63946] border-[#e63946]', bg: 'bg-[#e63946]', aiDiff: DIFFICULTY.L4 },
 ]
 
 export default function DailyChallenge() {
   const [selectedDiff, setSelectedDiff] = useState('easy')
   const [gameKey, setGameKey] = useState(0)
   const [showHint, setShowHint] = useState(false)
-  const [result, setResult] = useState(null) // 'won' | 'lost'
+  const [result, setResult] = useState(null)
 
   const { profile, addXP, addCoins, recordDailyChallenge, checkAndUnlockAchievements } = useApp()
+
   const challenge = getDailyChallenge(selectedDiff)
-  const completedToday = profile.lastDailyDate === new Date().toDateString()
+  const diff = DIFF_OPTIONS.find(d => d.key === selectedDiff)
+
+  // Per-difficulty completion check
+  const today = new Date().toDateString()
+  const todayCompletions = profile.dailyCompletions?.[today] ?? {}
+  const isCompleted = (key) => todayCompletions[key] === true
 
   const handleGameEnd = useCallback(({ winner }) => {
     const won = winner === PLAYER.RED
     setResult(won ? 'won' : 'lost')
     if (won) {
-      const xpReward = selectedDiff === 'easy' ? XP_REWARDS.DAILY_EASY : selectedDiff === 'medium' ? XP_REWARDS.DAILY_MEDIUM : XP_REWARDS.DAILY_HARD
-      addXP(xpReward, `Daily Challenge (${selectedDiff})!`)
-      addCoins(selectedDiff === 'easy' ? 5 : selectedDiff === 'medium' ? 10 : 20)
-      recordDailyChallenge(selectedDiff)
+      const d = DIFF_OPTIONS.find(x => x.key === selectedDiff)
+      addXP(d.xp, `Daily Challenge (${d.label})!`)
+      addCoins(d.key === 'easy' ? 5 : d.key === 'medium' ? 10 : 20)
+      recordDailyChallenge(d.key)
       checkAndUnlockAchievements({ type: 'daily_complete' })
     }
   }, [selectedDiff, addXP, addCoins, recordDailyChallenge, checkAndUnlockAchievements])
@@ -42,27 +46,27 @@ export default function DailyChallenge() {
 
   const game = useGameLogic({
     mode: GAME_MODE.AI,
-    difficulty: selectedDiff === 'easy' ? DIFFICULTY.L2 : selectedDiff === 'medium' ? DIFFICULTY.L3 : DIFFICULTY.L4,
+    difficulty: diff?.aiDiff ?? DIFFICULTY.L2,
     startingBoard: challenge.board,
     onGameEnd: handleGameEnd,
     onCapture: handleCapture,
   })
 
-  const resetChallenge = () => {
+  const resetChallenge = useCallback(() => {
     game.reset(challenge.board)
     setResult(null)
     setShowHint(false)
     setGameKey(k => k + 1)
-  }
+  }, [game.reset, challenge.board])
 
-  const changeDiff = (d) => {
+  const changeDiff = useCallback((d) => {
+    const newChallenge = getDailyChallenge(d)
     setSelectedDiff(d)
     setResult(null)
     setShowHint(false)
     setGameKey(k => k + 1)
-  }
-
-  const diff = DIFF_OPTIONS.find(d => d.key === selectedDiff)
+    game.reset(newChallenge.board)
+  }, [game.reset])
 
   return (
     <div className="min-h-screen pt-[70px] animate-fade-in">
@@ -82,18 +86,22 @@ export default function DailyChallenge() {
             </div>
           </div>
 
-          {/* Difficulty tabs */}
           <div className="flex gap-2 ml-auto">
             {DIFF_OPTIONS.map(d => (
               <button
                 key={d.key}
                 onClick={() => changeDiff(d.key)}
-                className={`px-4 py-1.5 rounded-lg text-sm font-semibold border-2 transition-all duration-150 ${
+                className={`relative px-4 py-1.5 rounded-lg text-sm font-semibold border-2 transition-all duration-150 ${
                   selectedDiff === d.key ? `${d.bg} text-white border-transparent` : `border-[#e0e0e0] dark:border-[#333] ${d.color} hover:opacity-80`
                 }`}
               >
                 {d.label}
                 <span className="ml-1.5 text-[10px] opacity-80">+{d.xp} XP</span>
+                {isCompleted(d.key) && (
+                  <span className="absolute -top-1.5 -right-1.5 w-4 h-4 bg-[#22c55e] rounded-full flex items-center justify-center">
+                    <span className="text-[8px] text-white font-bold">✓</span>
+                  </span>
+                )}
               </button>
             ))}
           </div>
@@ -132,7 +140,7 @@ export default function DailyChallenge() {
               </div>
             </div>
 
-            {/* Hint toggle */}
+            {/* Hint */}
             <div className="card">
               <button
                 onClick={() => setShowHint(h => !h)}
@@ -151,7 +159,7 @@ export default function DailyChallenge() {
               )}
             </div>
 
-            {/* Turn indicator */}
+            {/* Status */}
             <div className="card">
               <p className="text-[10px] font-semibold uppercase tracking-widest text-[#999] dark:text-[#555] mb-3">Status</p>
               {result ? (
@@ -175,27 +183,31 @@ export default function DailyChallenge() {
                   <div>
                     <p className="font-semibold text-sm">{game.currentPlayer === PLAYER.RED ? 'Red (You)' : 'AI'}</p>
                     <p className="text-xs text-[#666] dark:text-[#b0b0b0]">
-                      {game.currentPlayer === PLAYER.RED ? 'Your turn — make a move!' : 'AI is thinking...'}
+                      {game.aiThinking ? 'AI is thinking...' : game.currentPlayer === PLAYER.RED ? 'Your turn!' : 'Moving...'}
                     </p>
                   </div>
                 </div>
               )}
             </div>
 
-            {/* Progress */}
+            {/* Today's progress */}
             <div className="card">
               <p className="text-[10px] font-semibold uppercase tracking-widest text-[#999] dark:text-[#555] mb-3">Today's Progress</p>
               <div className="grid grid-cols-3 gap-2">
-                {DIFF_OPTIONS.map(d => (
-                  <div key={d.key} className="text-center">
-                    <div className={`w-8 h-8 rounded-full mx-auto mb-1.5 flex items-center justify-center text-xs font-bold border-2 ${
-                      completedToday && selectedDiff === d.key ? `${d.bg} text-white border-transparent` : 'border-[#e0e0e0] dark:border-[#333] text-[#999]'
-                    }`}>
-                      {completedToday && selectedDiff === d.key ? '✓' : '○'}
+                {DIFF_OPTIONS.map(d => {
+                  const done = isCompleted(d.key)
+                  return (
+                    <div key={d.key} className="text-center">
+                      <div className={`w-8 h-8 rounded-full mx-auto mb-1.5 flex items-center justify-center text-xs font-bold border-2 transition-all ${
+                        done ? `${d.bg} text-white border-transparent` : 'border-[#e0e0e0] dark:border-[#333] text-[#999]'
+                      }`}>
+                        {done ? '✓' : '○'}
+                      </div>
+                      <p className={`text-[10px] font-semibold ${d.color}`}>{d.label}</p>
+                      <p className="text-[9px] text-[#999] dark:text-[#555]">+{d.xp} XP</p>
                     </div>
-                    <p className={`text-[10px] font-semibold ${d.color}`}>{d.label}</p>
-                  </div>
-                ))}
+                  )
+                })}
               </div>
             </div>
           </div>

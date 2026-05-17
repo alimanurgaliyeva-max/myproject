@@ -15,45 +15,63 @@ export function useGameLogic({ mode = GAME_MODE.AI, difficulty = DIFFICULTY.L3, 
   const [moveCount, setMoveCount] = useState(0)
   const [aiThinking, setAiThinking] = useState(false)
   const [lastMove, setLastMove] = useState(null)
-  const [moveHistory, setMoveHistory] = useState([]) // { board, move, player }
+  const [moveHistory, setMoveHistory] = useState([])
+
+  // Refs for reading latest values inside async callbacks without stale closures
   const boardRef = useRef(board)
+  const moveHistoryRef = useRef([])
+  const capturedRedRef = useRef(0)
+  const capturedBlackRef = useRef(0)
 
   useEffect(() => { boardRef.current = board }, [board])
 
-  const endGame = useCallback((w) => {
+  const endGame = useCallback((w, history, capRed, capBlack) => {
     setStatus(GAME_STATUS.OVER)
     setWinner(w)
-    onGameEnd?.({ winner: w })
+    onGameEnd?.({ winner: w, moveHistory: history, capturedRed: capRed, capturedBlack: capBlack })
   }, [onGameEnd])
 
   const doMove = useCallback((move, boardState, player) => {
-    setMoveHistory(h => [...h, { board: boardState, move, player }])
+    const entry = { board: boardState, move, player }
+    moveHistoryRef.current = [...moveHistoryRef.current, entry]
+    setMoveHistory(h => [...h, entry])
+
     const newBoard = applyMove(boardState, move)
     setBoard(newBoard)
     setLastMove(move)
     setMoveCount(c => c + 1)
+
     if (move.captures.length > 0) {
-      if (player === PLAYER.RED) setCapturedRed(c => c + move.captures.length)
-      else setCapturedBlack(c => c + move.captures.length)
+      if (player === PLAYER.RED) {
+        capturedRedRef.current += move.captures.length
+        setCapturedRed(capturedRedRef.current)
+      } else {
+        capturedBlackRef.current += move.captures.length
+        setCapturedBlack(capturedBlackRef.current)
+      }
       onCapture?.({ player, count: move.captures.length })
     }
+
     const w = checkWinner(newBoard)
-    if (w) { endGame(w); return newBoard }
+    if (w) {
+      endGame(w, moveHistoryRef.current, capturedRedRef.current, capturedBlackRef.current)
+      return newBoard
+    }
     setCurrentPlayer(p => p === PLAYER.RED ? PLAYER.BLACK : PLAYER.RED)
     return newBoard
   }, [endGame, onCapture])
 
-  // AI turn
+  // AI turn — reads boardRef so StrictMode double-invocation is harmless
   useEffect(() => {
     if (mode !== GAME_MODE.AI || currentPlayer !== PLAYER.BLACK || status !== GAME_STATUS.PLAYING) return
     setAiThinking(true)
-    const delays = { [DIFFICULTY.L1]: 400, [DIFFICULTY.L2]: 500, [DIFFICULTY.L3]: 600, [DIFFICULTY.L4]: 800, [DIFFICULTY.L5]: 1000 }
+    const delays = { [DIFFICULTY.L1]: 300, [DIFFICULTY.L2]: 400, [DIFFICULTY.L3]: 500, [DIFFICULTY.L4]: 700, [DIFFICULTY.L5]: 900 }
     const timer = setTimeout(() => {
       const b = boardRef.current
       const move = getBestMove(b, difficulty)
       if (move) doMove(move, b, PLAYER.BLACK)
       setAiThinking(false)
-    }, delays[difficulty] ?? 600)
+    }, delays[difficulty] ?? 500)
     return () => clearTimeout(timer)
   }, [currentPlayer, mode, difficulty, status, doMove])
 
@@ -65,7 +83,6 @@ export function useGameLogic({ mode = GAME_MODE.AI, difficulty = DIFFICULTY.L3, 
     const allMoves = getAllMoves(board, currentPlayer)
     const hasMandatoryCapture = allMoves.some(m => m.captures.length > 0)
 
-    // Execute a move
     if (selected) {
       const move = validMoves.find(m => m.to[0] === row && m.to[1] === col)
       if (move) {
@@ -76,7 +93,6 @@ export function useGameLogic({ mode = GAME_MODE.AI, difficulty = DIFFICULTY.L3, 
       }
     }
 
-    // Select a piece
     if (piece && belongsTo(piece, currentPlayer)) {
       const pieceMoves = getValidMoves(board, row, col).filter(m =>
         hasMandatoryCapture ? m.captures.length > 0 : true
@@ -92,6 +108,9 @@ export function useGameLogic({ mode = GAME_MODE.AI, difficulty = DIFFICULTY.L3, 
   const reset = useCallback((newStartingBoard = null) => {
     const freshBoard = newStartingBoard ?? initialBoard()
     boardRef.current = freshBoard
+    moveHistoryRef.current = []
+    capturedRedRef.current = 0
+    capturedBlackRef.current = 0
     setBoard(freshBoard)
     setCurrentPlayer(PLAYER.RED)
     setSelected(null)

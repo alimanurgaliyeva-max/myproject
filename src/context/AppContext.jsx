@@ -22,6 +22,7 @@ const DEFAULT_PROFILE = {
   achievements: [],
   dailyStreak: 0,
   lastDailyDate: null,
+  dailyCompletions: {},
   boardTheme: 'classic',
   coachEnabled: true,
   hintLevel: 2,
@@ -128,12 +129,16 @@ export function AppProvider({ children }) {
   const recordDailyChallenge = useCallback((difficulty) => {
     const today = new Date().toDateString()
     setProfile(p => {
+      const prev = p.dailyCompletions ?? {}
+      const todayMap = { ...(prev[today] ?? {}) }
+      todayMap[difficulty] = true
       const isNewDay = p.lastDailyDate !== today
       const newStreak = isNewDay ? p.dailyStreak + 1 : p.dailyStreak
       return {
         ...p,
-        dailyStreak: newStreak,
         lastDailyDate: today,
+        dailyStreak: newStreak,
+        dailyCompletions: { ...prev, [today]: todayMap },
       }
     })
   }, [setProfile])
