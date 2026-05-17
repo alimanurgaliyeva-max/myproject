@@ -1,11 +1,10 @@
-import { useState, useCallback, useEffect } from 'react'
-import { initialBoard, getAllMoves, getValidMoves, applyMove, checkWinner } from '../utils/gameRules'
+import { useState, useCallback, useEffect, useRef } from 'react'
+import { initialBoard, getAllMoves, getValidMoves, applyMove, checkWinner, belongsTo } from '../utils/gameRules'
 import { getBestMove } from '../utils/aiEngine'
-import { useLocalStorage } from './useLocalStorage'
 import { PLAYER, GAME_MODE, GAME_STATUS, DIFFICULTY } from '../utils/constants'
 
-export function useGameLogic(mode = GAME_MODE.AI, difficulty = DIFFICULTY.MEDIUM) {
-  const [board, setBoard] = useState(initialBoard)
+export function useGameLogic({ mode = GAME_MODE.AI, difficulty = DIFFICULTY.L3, startingBoard = null, onGameEnd, onCapture }) {
+  const [board, setBoard] = useState(() => startingBoard ?? initialBoard())
   const [currentPlayer, setCurrentPlayer] = useState(PLAYER.RED)
   const [selected, setSelected] = useState(null)
   const [validMoves, setValidMoves] = useState([])
@@ -14,25 +13,18 @@ export function useGameLogic(mode = GAME_MODE.AI, difficulty = DIFFICULTY.MEDIUM
   const [capturedRed, setCapturedRed] = useState(0)
   const [capturedBlack, setCapturedBlack] = useState(0)
   const [moveCount, setMoveCount] = useState(0)
-  const [history, setHistory] = useLocalStorage('dama-history', [])
   const [aiThinking, setAiThinking] = useState(false)
   const [lastMove, setLastMove] = useState(null)
+  const [moveHistory, setMoveHistory] = useState([]) // { board, move, player }
 
-  const endGame = useCallback((w, finalBoard) => {
+  const endGame = useCallback((w) => {
     setStatus(GAME_STATUS.OVER)
     setWinner(w)
-    const record = {
-      id: Date.now(),
-      date: new Date().toISOString(),
-      mode,
-      difficulty: mode === GAME_MODE.AI ? difficulty : null,
-      winner: w,
-      moves: moveCount,
-    }
-    setHistory(h => [record, ...h].slice(0, 50))
-  }, [mode, difficulty, moveCount, setHistory])
+    onGameEnd?.({ winner: w })
+  }, [onGameEnd])
 
   const doMove = useCallback((move, boardState, player) => {
+    setMoveHistory(h => [...h, { board: boardState, move, player }])
     const newBoard = applyMove(boardState, move)
     setBoard(newBoard)
     setLastMove(move)
@@ -40,25 +32,29 @@ export function useGameLogic(mode = GAME_MODE.AI, difficulty = DIFFICULTY.MEDIUM
     if (move.captures.length > 0) {
       if (player === PLAYER.RED) setCapturedRed(c => c + move.captures.length)
       else setCapturedBlack(c => c + move.captures.length)
+      onCapture?.({ player, count: move.captures.length })
     }
     const w = checkWinner(newBoard)
-    if (w) { endGame(w, newBoard); return newBoard }
+    if (w) { endGame(w); return newBoard }
     setCurrentPlayer(p => p === PLAYER.RED ? PLAYER.BLACK : PLAYER.RED)
     return newBoard
-  }, [endGame])
+  }, [endGame, onCapture])
 
   // AI turn
   useEffect(() => {
     if (mode !== GAME_MODE.AI || currentPlayer !== PLAYER.BLACK || status !== GAME_STATUS.PLAYING) return
     setAiThinking(true)
-    const delay = difficulty === DIFFICULTY.EASY ? 400 : difficulty === DIFFICULTY.MEDIUM ? 600 : 900
+    const delays = { [DIFFICULTY.L1]: 400, [DIFFICULTY.L2]: 500, [DIFFICULTY.L3]: 600, [DIFFICULTY.L4]: 800, [DIFFICULTY.L5]: 1000 }
     const timer = setTimeout(() => {
-      const move = getBestMove(board, difficulty)
-      if (move) doMove(move, board, PLAYER.BLACK)
-      setAiThinking(false)
-    }, delay)
+      setBoard(b => {
+        const move = getBestMove(b, difficulty)
+        if (move) doMove(move, b, PLAYER.BLACK)
+        setAiThinking(false)
+        return b
+      })
+    }, delays[difficulty] ?? 600)
     return () => clearTimeout(timer)
-  }, [currentPlayer, mode, board, difficulty, status, doMove])
+  }, [currentPlayer, mode, difficulty, status, doMove])
 
   const handleSquareClick = useCallback((row, col) => {
     if (status !== GAME_STATUS.PLAYING) return
@@ -68,7 +64,7 @@ export function useGameLogic(mode = GAME_MODE.AI, difficulty = DIFFICULTY.MEDIUM
     const allMoves = getAllMoves(board, currentPlayer)
     const hasMandatoryCapture = allMoves.some(m => m.captures.length > 0)
 
-    // Try to execute a move
+    // Execute a move
     if (selected) {
       const move = validMoves.find(m => m.to[0] === row && m.to[1] === col)
       if (move) {
@@ -80,20 +76,20 @@ export function useGameLogic(mode = GAME_MODE.AI, difficulty = DIFFICULTY.MEDIUM
     }
 
     // Select a piece
-    if (piece && isCurrentPlayerPiece(piece, currentPlayer)) {
-      const moves = getValidMoves(board, row, col).filter(m =>
+    if (piece && belongsTo(piece, currentPlayer)) {
+      const pieceMoves = getValidMoves(board, row, col).filter(m =>
         hasMandatoryCapture ? m.captures.length > 0 : true
       )
       setSelected([row, col])
-      setValidMoves(moves)
+      setValidMoves(pieceMoves)
     } else {
       setSelected(null)
       setValidMoves([])
     }
   }, [board, selected, validMoves, currentPlayer, status, mode, doMove])
 
-  const reset = useCallback(() => {
-    setBoard(initialBoard())
+  const reset = useCallback((newStartingBoard = null) => {
+    setBoard(newStartingBoard ?? initialBoard())
     setCurrentPlayer(PLAYER.RED)
     setSelected(null)
     setValidMoves([])
@@ -104,16 +100,12 @@ export function useGameLogic(mode = GAME_MODE.AI, difficulty = DIFFICULTY.MEDIUM
     setMoveCount(0)
     setLastMove(null)
     setAiThinking(false)
+    setMoveHistory([])
   }, [])
 
   return {
     board, currentPlayer, selected, validMoves, status, winner,
-    capturedRed, capturedBlack, moveCount, aiThinking, lastMove,
-    history, handleSquareClick, reset,
+    capturedRed, capturedBlack, moveCount, aiThinking, lastMove, moveHistory,
+    handleSquareClick, reset,
   }
-}
-
-function isCurrentPlayerPiece(piece, player) {
-  if (player === PLAYER.RED) return piece === 'red' || piece === 'red-king'
-  return piece === 'black' || piece === 'black-king'
 }

@@ -1,0 +1,148 @@
+export const ACHIEVEMENTS = [
+  {
+    id: 'first_win',
+    name: 'First Blood',
+    description: 'Win your first game against the AI',
+    emoji: '🏆',
+    xp: 50,
+    coins: 50,
+    check: ({ profile }) => profile.wins >= 1,
+  },
+  {
+    id: 'win_streak_5',
+    name: 'On a Roll',
+    description: 'Win 5 games in a row',
+    emoji: '🔥',
+    xp: 75,
+    coins: 50,
+    check: ({ profile }) => profile.winStreak >= 5,
+  },
+  {
+    id: 'win_streak_10',
+    name: 'Unstoppable',
+    description: 'Win 10 games in a row',
+    emoji: '⚡',
+    xp: 150,
+    coins: 100,
+    check: ({ profile }) => profile.winStreak >= 10,
+  },
+  {
+    id: 'daily_3',
+    name: 'Consistent',
+    description: 'Complete daily challenges 3 days in a row',
+    emoji: '📅',
+    xp: 60,
+    coins: 50,
+    check: ({ profile }) => profile.dailyStreak >= 3,
+  },
+  {
+    id: 'daily_7',
+    name: 'Devoted',
+    description: 'Complete daily challenges 7 days in a row',
+    emoji: '🌟',
+    xp: 200,
+    coins: 100,
+    check: ({ profile }) => profile.dailyStreak >= 7,
+  },
+  {
+    id: 'daily_30',
+    name: 'Daily Warrior',
+    description: 'Complete daily challenges 30 days in a row',
+    emoji: '💎',
+    xp: 500,
+    coins: 300,
+    check: ({ profile }) => profile.dailyStreak >= 30,
+  },
+  {
+    id: 'triple_capture',
+    name: 'Hat Trick',
+    description: 'Capture 3 pieces in a single turn',
+    emoji: '🎩',
+    xp: 40,
+    coins: 25,
+    check: ({ event }) => event?.type === 'capture_chain' && event.count >= 3,
+  },
+  {
+    id: 'no_hints_win',
+    name: 'Self-Made',
+    description: 'Win a game without using any AI hints',
+    emoji: '🧠',
+    xp: 60,
+    coins: 50,
+    check: ({ event }) => event?.type === 'game_end' && event.won && !event.usedHints,
+  },
+  {
+    id: 'perfect_game',
+    name: 'Untouchable',
+    description: 'Win without losing a single piece',
+    emoji: '💫',
+    xp: 100,
+    coins: 75,
+    check: ({ event }) => event?.type === 'game_end' && event.won && event.capturedByOpponent === 0,
+  },
+  {
+    id: 'beat_advanced',
+    name: 'Conqueror',
+    description: 'Defeat the Advanced AI (Nika)',
+    emoji: '🎯',
+    xp: 100,
+    coins: 75,
+    check: ({ event }) => event?.type === 'game_end' && event.won && event.difficulty === 'l4',
+  },
+  {
+    id: 'beat_master',
+    name: 'Grandmaster',
+    description: 'Defeat the Master AI (Viktor)',
+    emoji: '👑',
+    xp: 200,
+    coins: 150,
+    check: ({ event }) => event?.type === 'game_end' && event.won && event.difficulty === 'l5',
+  },
+  {
+    id: 'level_10',
+    name: 'Rising Star',
+    description: 'Reach Level 10',
+    emoji: '⭐',
+    xp: 0,
+    coins: 100,
+    check: ({ profile }) => profile.level >= 10,
+  },
+  {
+    id: 'games_50',
+    name: 'Dedicated',
+    description: 'Play 50 games',
+    emoji: '🎮',
+    xp: 100,
+    coins: 75,
+    check: ({ profile }) => profile.gamesPlayed >= 50,
+  },
+  {
+    id: 'games_100',
+    name: 'Veteran',
+    description: 'Play 100 games',
+    emoji: '🏅',
+    xp: 200,
+    coins: 150,
+    check: ({ profile }) => profile.gamesPlayed >= 100,
+  },
+  {
+    id: 'elo_1800',
+    name: 'Elite',
+    description: 'Reach 1800 Elo rating',
+    emoji: '💠',
+    xp: 300,
+    coins: 200,
+    check: ({ profile }) => profile.elo >= 1800,
+  },
+]
+
+export function checkNewAchievements(profile, event, unlockedIds) {
+  const newly = []
+  for (const ach of ACHIEVEMENTS) {
+    if (unlockedIds.includes(ach.id)) continue
+    try {
+      if (ach.check({ profile, event })) newly.push(ach)
+    } catch {}
+  }
+  return newly
+}
