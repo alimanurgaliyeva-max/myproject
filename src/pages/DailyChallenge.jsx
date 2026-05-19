@@ -112,7 +112,7 @@ export default function DailyChallenge() {
       <div className="max-w-5xl mx-auto px-4 md:px-6 py-8">
         <div className="flex flex-col lg:flex-row gap-8 items-start justify-center">
           {/* Board */}
-          <div className="flex flex-col gap-4 w-full lg:w-auto items-center">
+          <div className="flex flex-col gap-4 w-full lg:min-w-[480px] lg:max-w-[520px] flex-shrink-0 items-center">
             <Board
               key={gameKey}
               board={game.board}
@@ -123,7 +123,7 @@ export default function DailyChallenge() {
               onSquareClick={game.handleSquareClick}
               boardTheme={profile.boardTheme}
             />
-            <div className="w-full max-w-[600px]">
+            <div className="w-full">
               <GameControls onNewGame={resetChallenge} status={game.status} />
             </div>
           </div>

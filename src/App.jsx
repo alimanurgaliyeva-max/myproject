@@ -1,4 +1,5 @@
 import { Routes, Route } from 'react-router-dom'
+import { AuthProvider } from './context/AuthContext'
 import { AppProvider } from './context/AppContext'
 import Navigation from './components/Navigation'
 import AchievementToast from './components/AchievementToast'
@@ -9,6 +10,8 @@ import Profile from './pages/Profile'
 import Achievements from './pages/Achievements'
 import DailyChallenge from './pages/DailyChallenge'
 import Tutorials from './pages/Tutorials'
+import Leaderboard from './pages/Leaderboard'
+import MultiplayerLobby from './pages/MultiplayerLobby'
 import { useTheme } from './hooks/useTheme'
 
 function ThemeInit() {
@@ -18,6 +21,7 @@ function ThemeInit() {
 
 export default function App() {
   return (
+    <AuthProvider>
     <AppProvider>
       <ThemeInit />
       <Navigation />
@@ -30,7 +34,10 @@ export default function App() {
         <Route path="/achievements" element={<Achievements />} />
         <Route path="/daily" element={<DailyChallenge />} />
         <Route path="/tutorials" element={<Tutorials />} />
+        <Route path="/leaderboard" element={<Leaderboard />} />
+        <Route path="/multiplayer" element={<MultiplayerLobby />} />
       </Routes>
     </AppProvider>
+    </AuthProvider>
   )
 }

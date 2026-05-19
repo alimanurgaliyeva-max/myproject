@@ -1,7 +1,9 @@
-import { createContext, useContext, useState, useCallback, useEffect } from 'react'
+import { createContext, useContext, useState, useCallback, useEffect, useRef } from 'react'
 import { useLocalStorage } from '../hooks/useLocalStorage'
 import { getLevelInfo } from '../utils/xpSystem'
-import { checkNewAchievements, ACHIEVEMENTS } from '../utils/achievements'
+import { checkNewAchievements } from '../utils/achievements'
+import { useAuth } from './AuthContext'
+import { supabase } from '../utils/supabase'
 
 const Ctx = createContext(null)
 
@@ -32,12 +34,88 @@ const DEFAULT_PROFILE = {
 }
 
 export function AppProvider({ children }) {
+  const { user } = useAuth()
   const [profile, setProfile] = useLocalStorage('dama-profile-v2', DEFAULT_PROFILE)
   const [history, setHistory] = useLocalStorage('dama-history-v2', [])
   const [notifications, setNotifications] = useState([])
 
-  // Keep level/title in sync
+  // Prevents the save effect from firing during Supabase load
+  const suppressSaveRef = useRef(false)
+  const wasLoggedInRef = useRef(false)
+
   const levelInfo = getLevelInfo(profile.totalXP)
+
+  // Load from Supabase on login; reset to defaults on logout
+  useEffect(() => {
+    if (!user) {
+      if (wasLoggedInRef.current) {
+        wasLoggedInRef.current = false
+        setProfile(DEFAULT_PROFILE)
+      }
+      return
+    }
+
+    wasLoggedInRef.current = true
+    suppressSaveRef.current = true
+
+    supabase
+      .from('profiles')
+      .select('*')
+      .eq('id', user.id)
+      .single()
+      .then(({ data }) => {
+        const metaUsername = user.user_metadata?.username
+        if (data) {
+          setProfile(p => ({
+            ...p,
+            username: data.username ?? metaUsername ?? p.username,
+            elo: data.elo ?? p.elo,
+            totalXP: data.xp ?? p.totalXP,
+            wins: data.wins ?? p.wins,
+            losses: data.losses ?? p.losses,
+            achievements: data.achievements ?? p.achievements,
+            dailyStreak: data.daily_streak ?? p.dailyStreak,
+            coins: data.coins ?? p.coins,
+            level: getLevelInfo(data.xp ?? p.totalXP).level,
+          }))
+        } else if (metaUsername) {
+          // Profile row doesn't exist yet (race on signup) — use auth metadata
+          setProfile(p => ({ ...p, username: metaUsername }))
+        }
+        // Let React process the state update before re-enabling saves
+        setTimeout(() => { suppressSaveRef.current = false }, 600)
+      })
+  }, [user?.id]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Auto-save to Supabase when key fields change (debounced 1.5s)
+  useEffect(() => {
+    if (!user || suppressSaveRef.current) return
+    const timeout = setTimeout(() => {
+      if (suppressSaveRef.current) return
+      supabase.from('profiles').upsert({
+        id: user.id,
+        username: profile.username,
+        elo: profile.elo,
+        xp: profile.totalXP,
+        wins: profile.wins,
+        losses: profile.losses,
+        achievements: profile.achievements,
+        daily_streak: profile.dailyStreak,
+        coins: profile.coins,
+      })
+    }, 1500)
+    return () => clearTimeout(timeout)
+  }, [
+    user,
+    profile.username,
+    profile.elo,
+    profile.totalXP,
+    profile.wins,
+    profile.losses,
+    profile.achievements,
+    profile.dailyStreak,
+    profile.coins,
+  ])
 
   const updateProfile = useCallback((updates) => {
     setProfile(p => ({ ...p, ...updates }))
@@ -110,7 +188,7 @@ export function AppProvider({ children }) {
   const recordGame = useCallback(({ won, difficulty, mode, capturedByOpponent, moveCount, usedHints }) => {
     setProfile(p => {
       const newStreak = won ? p.winStreak + 1 : 0
-      return {
+      const updated = {
         ...p,
         gamesPlayed: p.gamesPlayed + 1,
         wins: won ? p.wins + 1 : p.wins,
@@ -118,13 +196,28 @@ export function AppProvider({ children }) {
         winStreak: newStreak,
         bestStreak: Math.max(p.bestStreak, newStreak),
       }
+      // Sync to Supabase immediately so the leaderboard reflects latest stats
+      if (user) {
+        supabase.from('profiles').upsert({
+          id: user.id,
+          username: updated.username,
+          elo: updated.elo,
+          xp: updated.totalXP,
+          wins: updated.wins,
+          losses: updated.losses,
+          achievements: updated.achievements,
+          daily_streak: updated.dailyStreak,
+          coins: updated.coins,
+        })
+      }
+      return updated
     })
     setHistory(h => [{
       id: Date.now(),
       date: new Date().toISOString(),
       mode, difficulty, won, capturedByOpponent, moveCount, usedHints,
     }, ...h].slice(0, 100))
-  }, [setProfile, setHistory])
+  }, [user, setProfile, setHistory])
 
   const recordDailyChallenge = useCallback((difficulty) => {
     const today = new Date().toDateString()

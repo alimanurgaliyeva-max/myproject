@@ -1,6 +1,8 @@
+import { useState, useEffect } from 'react'
 import { Link } from 'react-router-dom'
-import { Target, TrendingUp, AlertTriangle, Zap, RotateCcw, Home } from 'lucide-react'
+import { Target, TrendingUp, AlertTriangle, Zap, RotateCcw, Home, Brain } from 'lucide-react'
 import { PLAYER, GAME_MODE, AI_OPPONENTS } from '../utils/constants'
+import { analyzeGameWithClaude } from '../utils/claudeAnalysis'
 
 function Stat({ icon: Icon, label, value, color = '' }) {
   return (
@@ -29,9 +31,21 @@ function AccuracyRing({ accuracy }) {
   )
 }
 
-export default function PostGameAnalysis({ winner, mode, difficulty, analysis, capturedByOpponent, onPlayAgain }) {
+export default function PostGameAnalysis({ winner, mode, difficulty, analysis, capturedByOpponent, onPlayAgain, moveHistory }) {
   const won = winner === PLAYER.RED
   const ai = AI_OPPONENTS[difficulty]
+
+  const [claudeAnalysis, setClaudeAnalysis] = useState(null)
+  const [loadingAnalysis, setLoadingAnalysis] = useState(false)
+
+  useEffect(() => {
+    if (!moveHistory || moveHistory.length === 0) return
+    setLoadingAnalysis(true)
+    analyzeGameWithClaude(moveHistory, winner, difficulty)
+      .then(text => setClaudeAnalysis(text))
+      .catch(() => setClaudeAnalysis(null))
+      .finally(() => setLoadingAnalysis(false))
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in p-4">
@@ -79,6 +93,27 @@ export default function PostGameAnalysis({ winner, mode, difficulty, analysis, c
                 : analysis.accuracy >= 80
                 ? '🌟 Excellent game! Try increasing the AI difficulty to keep improving.'
                 : '💡 Good effort! Try enabling AI Coach hints to learn from each position.'}
+            </div>
+          )}
+
+          {/* Claude analysis */}
+          {(loadingAnalysis || claudeAnalysis) && (
+            <div className="border border-[#f1a208]/40 bg-[#fffbf0] dark:bg-[#1a1500] rounded-xl p-4">
+              <div className="flex items-center gap-2 mb-2">
+                <Brain size={15} className="text-[#f1a208] flex-shrink-0" />
+                <span className="text-xs font-semibold uppercase tracking-wider text-[#f1a208]">Coach Analysis</span>
+              </div>
+              {loadingAnalysis ? (
+                <div className="flex items-center gap-2 text-sm text-[#999] dark:text-[#666]">
+                  <svg className="animate-spin w-3.5 h-3.5 flex-shrink-0" viewBox="0 0 24 24" fill="none">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z" />
+                  </svg>
+                  Coach is analyzing your game...
+                </div>
+              ) : (
+                <p className="text-sm text-[#444] dark:text-[#ccc] leading-relaxed">{claudeAnalysis}</p>
+              )}
             </div>
           )}
 

@@ -1,7 +1,7 @@
 export const PLAYER = { RED: 'red', BLACK: 'black' }
 export const PIECE = { EMPTY: null, RED: 'red', BLACK: 'black', RED_KING: 'red-king', BLACK_KING: 'black-king' }
 export const DIFFICULTY = { L1: 'l1', L2: 'l2', L3: 'l3', L4: 'l4', L5: 'l5' }
-export const GAME_MODE = { AI: 'ai', LOCAL: 'local', DAILY: 'daily' }
+export const GAME_MODE = { AI: 'ai', LOCAL: 'local', DAILY: 'daily', ONLINE: 'online' }
 export const GAME_STATUS = { PLAYING: 'playing', OVER: 'over' }
 export const BOARD_SIZE = 8
 export const TIMER_MODES = { NONE: 'none', BLITZ: 'blitz', RAPID: 'rapid', CLASSICAL: 'classical' }

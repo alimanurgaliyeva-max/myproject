@@ -20,6 +20,7 @@ export function useGameLogic({
   mode = GAME_MODE.AI,
   difficulty = DIFFICULTY.L3,
   startingBoard = null,
+  localPlayer = null,
   onGameEnd,
   onCapture,
   soundEnabled = true,
@@ -171,6 +172,7 @@ export function useGameLogic({
   const handleSquareClick = useCallback((row, col) => {
     if (status !== GAME_STATUS.PLAYING) return
     if (mode === GAME_MODE.AI && (currentPlayer === PLAYER.BLACK || aiThinking)) return
+    if (mode === GAME_MODE.ONLINE && currentPlayer !== localPlayer) return
 
     // Player is stepping through a chain capture
     if (chainState) {
@@ -273,7 +275,32 @@ export function useGameLogic({
       setSelected(null)
       setValidMoves([])
     }
-  }, [board, selected, validMoves, currentPlayer, status, mode, aiThinking, doMove, chainState])
+  }, [board, selected, validMoves, currentPlayer, status, mode, aiThinking, doMove, chainState, localPlayer])
+
+  // Apply a board state received from a remote player.
+  const syncBoard = useCallback((newBoard, nextPlayer) => {
+    // Derive captured counts from remaining pieces (12 per side at start)
+    let redCount = 0, blackCount = 0
+    for (const row of newBoard) {
+      for (const cell of row) {
+        if (cell === PIECE.RED || cell === PIECE.RED_KING) redCount++
+        if (cell === PIECE.BLACK || cell === PIECE.BLACK_KING) blackCount++
+      }
+    }
+    capturedRedRef.current = 12 - redCount
+    capturedBlackRef.current = 12 - blackCount
+    setCapturedRed(capturedRedRef.current)
+    setCapturedBlack(capturedBlackRef.current)
+    boardRef.current = newBoard
+    setBoard(newBoard)
+    setMoveCount(c => c + 1)
+    const w = checkWinner(newBoard)
+    if (w) {
+      endGame(w, moveHistoryRef.current, capturedRedRef.current, capturedBlackRef.current)
+    } else {
+      setCurrentPlayer(nextPlayer)
+    }
+  }, [endGame])
 
   const reset = useCallback((newStartingBoard = null) => {
     animCancelRef.current?.()
@@ -315,6 +342,6 @@ export function useGameLogic({
     validMoves: displayValidMoves,
     status, winner,
     capturedRed, capturedBlack, moveCount, aiThinking, lastMove, lastCaptures, moveHistory,
-    handleSquareClick, reset,
+    handleSquareClick, reset, syncBoard,
   }
 }

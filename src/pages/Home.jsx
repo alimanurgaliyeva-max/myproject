@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { Bot, Users, Flame, Trophy, ChevronRight, Zap, Shield, TrendingUp } from 'lucide-react'
+import { Bot, Flame, Trophy, ChevronRight, Zap, Shield, TrendingUp, Globe } from 'lucide-react'
 import { useApp } from '../context/AppContext'
 import DailyChallengeCard from '../components/DailyChallengeCard'
 import { ACHIEVEMENTS } from '../utils/achievements'
@@ -158,9 +158,11 @@ export default function Home() {
                 to="/play?mode=ai" badge="Popular"
               />
               <ModeCard
-                icon={Users} title="Local Multiplayer"
-                desc="Play against a friend on the same device. Red vs Black."
-                to="/play?mode=local"
+                icon={Globe} title="Play Online"
+                desc="Challenge a real player anywhere in the world. Create a room and share the link."
+                to="/multiplayer"
+                badge="Live"
+                accent="#22c55e"
               />
               <ModeCard
                 icon={Flame} title="Daily Challenge"

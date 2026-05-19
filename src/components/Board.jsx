@@ -12,7 +12,7 @@ export default function Board({ board, selected, validMoves, lastMove, lastCaptu
 
   return (
     <div className="relative w-full max-w-[600px] aspect-square rounded-xl overflow-hidden shadow-heavy border border-[#e0e0e0] dark:border-[#333]">
-      <div className="grid grid-cols-8 w-full h-full">
+      <div className="grid grid-cols-8 grid-rows-8 w-full h-full">
         {Array(BOARD_SIZE).fill(null).map((_, row) =>
           Array(BOARD_SIZE).fill(null).map((_, col) => {
             const isDark = (row + col) % 2 === 1
@@ -26,7 +26,7 @@ export default function Board({ board, selected, validMoves, lastMove, lastCaptu
             return (
               <div
                 key={key}
-                className="relative flex items-center justify-center cursor-pointer transition-colors duration-150"
+                className="relative flex items-center justify-center cursor-pointer transition-colors duration-150 overflow-hidden"
                 style={{
                   backgroundColor: isDark
                     ? isLastMove ? adjustColor(theme.dark, 30) : theme.dark
